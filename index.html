@@ -2,37 +2,67 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Shooter 2D Guerra</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Shooter Android</title>
 
 <style>
 body {
     margin: 0;
     background: black;
     overflow: hidden;
-    font-family: Arial, sans-serif;
 }
 
 canvas {
     display: block;
     margin: auto;
     background: black;
-    border: 3px solid white;
+    border: 2px solid white;
 }
 
-#hud {
+/* ===== JOYSTICK ===== */
+#joystick {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    color: white;
-    font-size: 18px;
+    left: 20px;
+    bottom: 20px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+}
+
+#stick {
+    position: absolute;
+    left: 40px;
+    top: 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: white;
+}
+
+/* ===== BOTON DISPARO ===== */
+#fire {
+    position: absolute;
+    right: 30px;
+    bottom: 40px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: red;
+    opacity: 0.7;
 }
 </style>
 </head>
 
 <body>
 
-<div id="hud">Puntos: <span id="score">0</span></div>
 <canvas id="game" width="900" height="400"></canvas>
+
+<div id="joystick">
+    <div id="stick"></div>
+</div>
+
+<div id="fire"></div>
 
 <script>
 const canvas = document.getElementById("game");
@@ -49,10 +79,10 @@ const enemyTankImg = new Image();
 enemyTankImg.src = "enemyTank.png";
 
 // ===== VARIABLES =====
-let score = 0;
-const keys = {};
 let bullets = [];
 let enemies = [];
+let moveX = 0;
+let moveY = 0;
 
 // ===== JUGADOR =====
 const player = {
@@ -63,11 +93,7 @@ const player = {
     speed: 3
 };
 
-// ===== CONTROLES =====
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => keys[e.key] = false);
-
-// ===== DISPARO =====
+// ===== DISPARAR =====
 function shoot() {
     bullets.push({
         x: player.x + player.w,
@@ -78,18 +104,12 @@ function shoot() {
     });
 }
 
-// ===== CREAR ENEMIGOS =====
+// ===== ENEMIGOS =====
 function spawnEnemy() {
-
-    // posiciones para TANQUES
-    const tankPositions = [
-        20,                                   // arriba
-        canvas.height / 2 - 25,              // medio
-        canvas.height - 70                   // abajo
-    ];
+    const tankPositions = [20, canvas.height/2 - 25, canvas.height - 70];
 
     if (Math.random() < 0.7) {
-        // SOLDADO (2 disparos)
+        // SOLDADO
         enemies.push({
             type: "soldier",
             img: soldierImg,
@@ -101,7 +121,7 @@ function spawnEnemy() {
             life: 2
         });
     } else {
-        // TANQUE ENEMIGO (3 disparos)
+        // TANQUE
         enemies.push({
             type: "tank",
             img: enemyTankImg,
@@ -114,92 +134,88 @@ function spawnEnemy() {
         });
     }
 }
-
 setInterval(spawnEnemy, 1200);
 
-// ===== UPDATE =====
-function update() {
+// ===== JOYSTICK =====
+const joystick = document.getElementById("joystick");
+const stick = document.getElementById("stick");
 
-    // Movimiento jugador
-    if (keys["a"]) player.x -= player.speed;
-    if (keys["d"]) player.x += player.speed;
-    if (keys["w"]) player.y -= player.speed;
-    if (keys["s"]) player.y += player.speed;
+joystick.addEventListener("touchmove", e => {
+    e.preventDefault();
+    const rect = joystick.getBoundingClientRect();
+    const touch = e.touches[0];
+
+    let x = touch.clientX - rect.left - 60;
+    let y = touch.clientY - rect.top - 60;
+
+    x = Math.max(-40, Math.min(40, x));
+    y = Math.max(-40, Math.min(40, y));
+
+    moveX = x / 20;
+    moveY = y / 20;
+
+    stick.style.left = 40 + x + "px";
+    stick.style.top = 40 + y + "px";
+});
+
+joystick.addEventListener("touchend", () => {
+    moveX = 0;
+    moveY = 0;
+    stick.style.left = "40px";
+    stick.style.top = "40px";
+});
+
+// ===== BOTON DISPARO =====
+document.getElementById("fire").addEventListener("touchstart", shoot);
+
+// ===== LOOP =====
+function update() {
+    player.x += moveX * player.speed;
+    player.y += moveY * player.speed;
 
     player.x = Math.max(0, Math.min(player.x, canvas.width - player.w));
     player.y = Math.max(0, Math.min(player.y, canvas.height - player.h));
 
-    // Disparo
-    if (keys[" "] && bullets.length < 5) shoot();
-
-    // Balas
-    bullets.forEach((b, i) => {
+    bullets.forEach((b,i)=>{
         b.x += b.speed;
-        if (b.x > canvas.width) bullets.splice(i, 1);
+        if(b.x > canvas.width) bullets.splice(i,1);
     });
 
-    // Enemigos
-    enemies.forEach((e, ei) => {
+    enemies.forEach((e,ei)=>{
         e.x -= e.speed;
 
-        // Bala vs enemigo
-        bullets.forEach((b, bi) => {
-            if (
+        bullets.forEach((b,bi)=>{
+            if(
                 b.x < e.x + e.w &&
                 b.x + b.w > e.x &&
                 b.y < e.y + e.h &&
                 b.y + b.h > e.y
-            ) {
-                bullets.splice(bi, 1);
+            ){
+                bullets.splice(bi,1);
                 e.life--;
-
-                if (e.life <= 0) {
-                    enemies.splice(ei, 1);
-                    score += (e.type === "tank" ? 30 : 10);
-                    document.getElementById("score").textContent = score;
-                }
+                if(e.life <= 0) enemies.splice(ei,1);
             }
         });
-
-        // Colisión jugador
-        if (
-            player.x < e.x + e.w &&
-            player.x + player.w > e.x &&
-            player.y < e.y + e.h &&
-            player.y + player.h > e.y
-        ) {
-            alert("💥 GAME OVER 💥\nPuntos: " + score);
-            location.reload();
-        }
     });
 }
 
-// ===== DIBUJO =====
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Jugador
+    ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
 
-    // Balas
     ctx.fillStyle = "yellow";
-    bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+    bullets.forEach(b => ctx.fillRect(b.x,b.y,b.w,b.h));
 
-    // Enemigos
-    enemies.forEach(e => {
-        ctx.drawImage(e.img, e.x, e.y, e.w, e.h);
-    });
+    enemies.forEach(e => ctx.drawImage(e.img,e.x,e.y,e.w,e.h));
 }
 
-// ===== LOOP =====
 function loop() {
     update();
     draw();
     requestAnimationFrame(loop);
 }
 
-// Esperar imágenes
-enemyTankImg.onload = () => loop();
+enemyTankImg.onload = loop;
 </script>
 
 </body>
